@@ -180,7 +180,8 @@ class TelegramUploadClient(TelegramClient):
 
 				extension = file.file_name.split('.')[-1]
 				if extension in COVER_EXTENSIONS:
-					message.pin()
+					service_message = message.pin()
+					service_message.delete()
 
 				forward = [second_channel_id]
 				# endregion
