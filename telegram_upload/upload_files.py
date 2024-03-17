@@ -20,6 +20,13 @@ from telegram_upload.video import get_video_thumb, video_metadata
 mimetypes.init()
 
 
+# region mine
+
+COVER_EXTENSIONS = ['jpg', 'jpeg', 'png']
+
+# endregion
+
+
 if TYPE_CHECKING:
     from telegram_upload.client import TelegramManagerClient
 
@@ -172,6 +179,24 @@ class File(FileIO):
         If caption is set, format it with CaptionFormatter.
         Anyways, truncate caption to max_caption_length.
         """
+        # region mine
+
+        # region variables
+        initial_path = self.path.split('.')
+        album_name_with_year = initial_path[0].split('/')[0]
+        album_name = album_name_with_year[11:] # cutting YYYY-MM-DD\s from the beginning
+        extension = initial_path[1]
+
+        # endregion
+
+        if extension in COVER_EXTENSIONS:
+            caption = album_name
+            return truncate(caption, self.client.max_caption_length)
+        else:
+            caption = ""
+            return
+
+        # endregion
         if self._caption is not None:
             formatter = CaptionFormatter()
             caption = formatter.format(self._caption, file=FilePath(self.path), now=datetime.datetime.now())

@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 
 """Console script for telegram-upload."""
