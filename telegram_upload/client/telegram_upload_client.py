@@ -35,7 +35,7 @@ class TelegramUploadClient(TelegramClient):
 
 	def forward_to(self, message, destinations):
 		for destination in destinations:
-			self.forward_messages(destination, [message])
+			self.forward_messages(destination, [message], drop_author=True)
 
 
 	async def _send_album_media(self, entity, media):
