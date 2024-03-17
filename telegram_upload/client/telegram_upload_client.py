@@ -96,7 +96,7 @@ class TelegramUploadClient(TelegramClient):
 
 
 	def send_one_file(self, entity, file: File, send_as_media: bool = False, thumb: Optional[str] = None,
-					  retries=RETRIES):
+		retries=RETRIES):
 		message = None
 		progress, bar = get_progress_bar('Uploading', file.file_name, file.file_size)
 
@@ -122,8 +122,7 @@ class TelegramUploadClient(TelegramClient):
 		return message
 
 
-	def send_files(self, entity, files: Iterable[File], delete_on_success=False, print_file_id=False,
-				   forward=(), send_as_media: bool = False):
+	def send_files(self, entity, files: Iterable[File], delete_on_success=False, print_file_id=False, forward=(), send_as_media: bool = False):
 		has_files = False
 		messages = []
 		# region mine
@@ -162,6 +161,22 @@ class TelegramUploadClient(TelegramClient):
 		for file in files:
 			has_files = True
 			thumb = file.get_thumbnail()
+			# region mine
+			file_name = file.file_name.split('.')[0]
+			if file_name == channel_name:
+				uploaded_image = async_to_sync(self.upload_file(file))
+				try:
+					set_channels_photo = bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id])
+					if set_channels_photo:
+						continue
+				except Exception as e:
+					print(e)
+					pass
+
+				#print(1111111)
+
+
+			# endregion
 			try:
 				message = self.send_one_file(entity, file, send_as_media, thumb=thumb)
 			finally:
@@ -177,7 +192,6 @@ class TelegramUploadClient(TelegramClient):
 				os.remove(file.path)
 			if message:
 				# region mine
-
 				extension = file.file_name.split('.')[-1]
 				if extension in COVER_EXTENSIONS:
 					service_message = message.pin()
