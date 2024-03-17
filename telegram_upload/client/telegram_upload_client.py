@@ -136,8 +136,8 @@ class TelegramUploadClient(TelegramClient):
 		if existing_discography:
 			channel_id = existing_discography[0][0]
 			second_channel_id = existing_discography[0][1]
-			print(existing_discography)
-			print(channel_id, second_channel_id)
+			entity = channel_id
+			self.get_dialogs()
 
 		else:
 			channel_id, second_channel_id = async_to_sync(bot.Bot._create_channels("", channel_name))
@@ -154,7 +154,8 @@ class TelegramUploadClient(TelegramClient):
 				channels_added_to_db = async_to_sync(db.execute_query("add_discography", payload))
 				if channels_added_to_db:
 					print('Channels added to database')
-					# SEND MUSIC FROM FOLDER TO THIS CHANNELS
+					entity = channel_id
+					self.get_dialogs()
 
 
 		# endregion
@@ -181,6 +182,7 @@ class TelegramUploadClient(TelegramClient):
 				if extension in COVER_EXTENSIONS:
 					message.pin()
 
+				forward = [second_channel_id]
 				# endregion
 				self.forward_to(message, forward)
 				messages.append(message)
