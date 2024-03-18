@@ -125,12 +125,16 @@ class TelegramUploadClient(TelegramClient):
 	def send_files(self, entity, files: Iterable[File], delete_on_success=False, print_file_id=False, forward=(), send_as_media: bool = False):
 		has_files = False
 		messages = []
-		# region mine
+		# region mine: getting channels ids
+
+		# region variables
 
 		import bot
 		channel_name = os.getcwd().split('/')[-1]
 		db = bot.Database()
 		existing_discography = async_to_sync(db.execute_query("check_discography", channel_name))
+
+		# endregion
 
 		if existing_discography:
 			channel_id = existing_discography[0][0]
@@ -156,18 +160,17 @@ class TelegramUploadClient(TelegramClient):
 					entity = channel_id
 					self.get_dialogs()
 
-
 		# endregion
 		for file in files:
 			has_files = True
 			thumb = file.get_thumbnail()
-			# region mine
+			# region mine: setting channel's photo
 			file_name = file.file_name.split('.')[0]
 			if file_name == channel_name:
 				uploaded_image = async_to_sync(self.upload_file(file))
 				try:
-					set_channels_photo = bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id])
-					if set_channels_photo:
+					channels_photo_set = bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id])
+					if channels_photo_set:
 						continue
 				except Exception as e:
 					print(e)
@@ -203,6 +206,11 @@ class TelegramUploadClient(TelegramClient):
 				messages.append(message)
 		if not has_files:
 			raise MissingFileError('Files do not exist.')
+		# region mine: setting main account as admin
+
+		main_account_set_admin = bot.Bot._set_channel_admin("", channel_id)
+
+		# endregion
 		return messages
 
 

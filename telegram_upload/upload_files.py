@@ -182,10 +182,10 @@ class File(FileIO):
         # region mine
 
         # region variables
-        initial_path = self.path.split('.')
-        album_name_with_year = initial_path[0].split('/')[0]
-        album_name = album_name_with_year[11:] # cutting YYYY-MM-DD\s from the beginning
-        extension = initial_path[1]
+
+        folder_name_and_cover_file = self.path.split('/')
+        album_name = folder_name_and_cover_file[0][11:] # cutting YYYY-MM-DD\s from the beginning
+        extension = folder_name_and_cover_file[1].split('.')[1]
 
         # endregion
 
