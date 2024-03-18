@@ -13,7 +13,7 @@ from telethon.utils import pack_bot_file_id
 
 from telegram_upload.client.progress_bar import get_progress_bar
 from telegram_upload.exceptions import TelegramUploadDataLoss, MissingFileError
-from telegram_upload.upload_files import File, COVER_EXTENSIONS
+from telegram_upload.upload_files import File, COVER_EXTENSIONS, RESTRICTED_ALBUMS_TO_UPLOAD
 from telegram_upload.utils import grouper, async_to_sync, get_environment_integer
 
 PARALLEL_UPLOAD_BLOCKS = get_environment_integer('TELEGRAM_UPLOAD_PARALLEL_UPLOAD_BLOCKS', 4)
@@ -165,7 +165,28 @@ class TelegramUploadClient(TelegramClient):
 			has_files = True
 			thumb = file.get_thumbnail()
 			# region mine: setting channel's photo
+
+			# region mine: skipping .DS_Store
+			if file.file_name == ".DS_Store":
+				continue
+			# endregion
+
 			file_name = file.file_name.split('.')[0]
+
+			# region mine: skipping restricted albums
+
+			album_name = file.path.split('/')[0]
+
+			should_skip_file = False
+			for restriction in RESTRICTED_ALBUMS_TO_UPLOAD:
+				if restriction in album_name:
+					should_skip_file = True
+
+			if should_skip_file:
+				continue
+
+			# endregion
+
 			if file_name == channel_name:
 				uploaded_image = async_to_sync(self.upload_file(file))
 				try:
@@ -191,7 +212,7 @@ class TelegramUploadClient(TelegramClient):
 				click.echo('Uploaded successfully "{}" (file_id {})'.format(file.file_name,
 																			pack_bot_file_id(message.media)))
 			if message and delete_on_success:
-				click.echo('Deleting "{}"'.format(file))
+				click.echo('Deleting "{}"'.format(file.file_name))
 				os.remove(file.path)
 			if message:
 				# region mine
@@ -208,7 +229,7 @@ class TelegramUploadClient(TelegramClient):
 			raise MissingFileError('Files do not exist.')
 		# region mine: setting main account as admin
 
-		main_account_set_admin = bot.Bot._set_channel_admin("", channel_id)
+		#main_account_set_admin = bot.Bot._set_channel_admin("", channel_id)
 
 		# endregion
 		return messages

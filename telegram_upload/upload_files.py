@@ -23,6 +23,10 @@ mimetypes.init()
 # region mine
 
 COVER_EXTENSIONS = ['jpg', 'jpeg', 'png']
+RESTRICTED_ALBUMS_TO_UPLOAD = [
+    " Live on ",
+    " (Live ",
+]
 
 # endregion
 
@@ -185,6 +189,10 @@ class File(FileIO):
 
         folder_name_and_cover_file = self.path.split('/')
         album_name = folder_name_and_cover_file[0][11:] # cutting YYYY-MM-DD\s from the beginning
+
+        album_name = album_name.replace("%COLON%", ":")
+        album_name = album_name.replace("%QUESTION%", "?")
+
         extension = folder_name_and_cover_file[1].split('.')[1]
 
         # endregion
