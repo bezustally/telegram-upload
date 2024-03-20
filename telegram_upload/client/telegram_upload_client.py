@@ -165,7 +165,14 @@ class TelegramUploadClient(TelegramClient):
 		for file in files:
 			has_files = True
 			thumb = file.get_thumbnail()
-			# region mine: setting channel's photo
+			# region mine: setting channel's photo & sending last message
+
+			# region mine: sending last message function
+
+			def _send_last_message():
+				async_to_sync(bot.Bot._send_message("", channel_id, bot.LAST_MESSAGE))
+
+			# endregion
 
 			# region mine: skipping .DS_Store
 			if file.file_name == ".DS_Store":
@@ -193,13 +200,19 @@ class TelegramUploadClient(TelegramClient):
 				try:
 					channels_photo_set = bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id])
 					if channels_photo_set:
+						last_message_sent = _send_last_message()
+						if last_message_sent:
+							click.echo(f"Last message sent to a `{channel_name}` channel")
 						continue
 				except Exception as e:
-					print(e)
-					pass
-
-				#print(1111111)
-
+					click.echo(f"have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before setting channel's photo...")
+					time.sleep(e.seconds)
+					channels_photo_set_2nd_try = bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id])
+					if channels_photo_set_2nd_try:
+						last_message_sent = _send_last_message()
+						if last_message_sent:
+							click.echo(f"Last message sent to a `{channel_name}` channel")
+						continue
 
 			# endregion
 			try:
@@ -212,9 +225,6 @@ class TelegramUploadClient(TelegramClient):
 			if message and print_file_id:
 				click.echo('Uploaded successfully "{}" (file_id {})'.format(file.file_name,
 																			pack_bot_file_id(message.media)))
-			if message and delete_on_success:
-				#click.echo('Deleting "{}"'.format(file.file_name))
-				os.remove(file.path)
 			if message:
 				# region mine: forwarding message to 2nd channel
 
@@ -224,7 +234,7 @@ class TelegramUploadClient(TelegramClient):
 				self.forward_to(message, forward)
 				# region mine: pinning cover message + forwading messages to 2nd channel
 
-				# region mine: excluding singles & so from pinning function
+				# region mine: excluding singles & so on from pinning function
 
 				pinning_flag = True
 				for restriction in RESTRICTED_ALBUMS_TO_PIN:
@@ -232,6 +242,22 @@ class TelegramUploadClient(TelegramClient):
 						pinning_flag = False
 
 				# endregion
+
+				# region mine: counting tracks in album:
+
+				count = 0
+				for item in os.listdir(album_name):
+					file_path = os.path.join(album_name, item)
+					if os.path.isfile(file_path):
+						count += 1
+
+				if count < bot.MIN_TRACKS_IN_ALBUM_TO_PIN:
+					pinning_flag = False
+				#print('remaining files in folder: ', count)
+
+				# endregion
+
+				# region mine: pinning covers
 
 				if pinning_flag:
 					extension = file.file_name.split('.')[-1]
@@ -246,7 +272,12 @@ class TelegramUploadClient(TelegramClient):
 							service_message.delete()
 
 				# endregion
+
+				# endregion
 				messages.append(message)
+			if message and delete_on_success:
+			#click.echo('Deleting "{}"'.format(file.file_name))
+				os.remove(file.path)
 		if not has_files:
 			raise MissingFileError('Files do not exist.')
 		# region mine: setting main account as admin

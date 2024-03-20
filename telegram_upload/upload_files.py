@@ -26,9 +26,17 @@ COVER_EXTENSIONS = ['jpg', 'jpeg', 'png']
 RESTRICTED_ALBUMS_TO_UPLOAD = [
     " Live on ",
     " (Live ",
+    " (Live)",
+    "%COLON% Live From ",
 ]
 RESTRICTED_ALBUMS_TO_PIN = [
     "(Single)",
+
+    " (Club Mixes)",
+
+    "  Remix)",
+    " (Remixes)",
+    " Remixes",
 ]
 
 # endregion
@@ -193,6 +201,7 @@ class File(FileIO):
         folder_name_and_cover_file = self.path.split('/')
         album_name = folder_name_and_cover_file[0][11:] # cutting YYYY-MM-DD\s from the beginning
 
+        album_name = album_name.replace("%SLASH%", "/")
         album_name = album_name.replace("%COLON%", ":")
         album_name = album_name.replace("%QUESTION%", "?")
 
