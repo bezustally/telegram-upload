@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import os
 import time
+from datetime import datetime, timedelta
 from typing import Iterable, Optional
 
 import click
@@ -13,7 +14,7 @@ from telethon.utils import pack_bot_file_id
 
 from telegram_upload.client.progress_bar import get_progress_bar
 from telegram_upload.exceptions import TelegramUploadDataLoss, MissingFileError
-from telegram_upload.upload_files import File, COVER_EXTENSIONS, RESTRICTED_ALBUMS_TO_UPLOAD
+from telegram_upload.upload_files import File, COVER_EXTENSIONS, RESTRICTED_ALBUMS_TO_UPLOAD, RESTRICTED_ALBUMS_TO_PIN
 from telegram_upload.utils import grouper, async_to_sync, get_environment_integer
 
 PARALLEL_UPLOAD_BLOCKS = get_environment_integer('TELEGRAM_UPLOAD_PARALLEL_UPLOAD_BLOCKS', 4)
@@ -212,18 +213,39 @@ class TelegramUploadClient(TelegramClient):
 				click.echo('Uploaded successfully "{}" (file_id {})'.format(file.file_name,
 																			pack_bot_file_id(message.media)))
 			if message and delete_on_success:
-				click.echo('Deleting "{}"'.format(file.file_name))
+				#click.echo('Deleting "{}"'.format(file.file_name))
 				os.remove(file.path)
 			if message:
-				# region mine
-				extension = file.file_name.split('.')[-1]
-				if extension in COVER_EXTENSIONS:
-					service_message = message.pin()
-					service_message.delete()
+				# region mine: forwarding message to 2nd channel
 
 				forward = [second_channel_id]
+
 				# endregion
 				self.forward_to(message, forward)
+				# region mine: pinning cover message + forwading messages to 2nd channel
+
+				# region mine: excluding singles & so from pinning function
+
+				pinning_flag = True
+				for restriction in RESTRICTED_ALBUMS_TO_PIN:
+					if restriction in album_name:
+						pinning_flag = False
+
+				# endregion
+
+				if pinning_flag:
+					extension = file.file_name.split('.')[-1]
+					if extension in COVER_EXTENSIONS:
+						try:
+							service_message = message.pin()
+							service_message.delete()
+						except Exception as e:
+							click.echo(f"have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before this pin...")
+							time.sleep(e.seconds)
+							service_message = message.pin()
+							service_message.delete()
+
+				# endregion
 				messages.append(message)
 		if not has_files:
 			raise MissingFileError('Files do not exist.')

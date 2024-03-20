@@ -27,6 +27,9 @@ RESTRICTED_ALBUMS_TO_UPLOAD = [
     " Live on ",
     " (Live ",
 ]
+RESTRICTED_ALBUMS_TO_PIN = [
+    "(Single)",
+]
 
 # endregion
 
