@@ -125,6 +125,7 @@ class TelegramUploadClient(TelegramClient):
 
 	def send_files(self, entity, files: Iterable[File], delete_on_success=False, print_file_id=False, forward=(), send_as_media: bool = False):
 		has_files = False
+
 		messages = []
 		# region mine: getting channels ids
 
@@ -246,10 +247,8 @@ class TelegramUploadClient(TelegramClient):
 				# region mine: counting tracks in album:
 
 				count = 0
-				for item in os.listdir(album_name):
-					file_path = os.path.join(album_name, item)
-					if os.path.isfile(file_path):
-						count += 1
+				for root, dirs, files in os.walk(album_name):
+					count += len(files)
 
 				if count < bot.MIN_TRACKS_IN_ALBUM_TO_PIN:
 					pinning_flag = False
@@ -268,8 +267,9 @@ class TelegramUploadClient(TelegramClient):
 						except Exception as e:
 							click.echo(f"have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before this pin...")
 							time.sleep(e.seconds)
-							service_message = message.pin()
-							service_message.delete()
+							self.forward_to(message, [channel_id])
+							message.delete()
+							async_to_sync(bot.Bot._pin_last_message("", channel_id))
 
 				# endregion
 
@@ -280,7 +280,7 @@ class TelegramUploadClient(TelegramClient):
 				os.remove(file.path)
 		if not has_files:
 			raise MissingFileError('Files do not exist.')
-		# region mine: setting main account as admin
+		# region mine: setting main account as admin NOT WORKING
 
 		#main_account_set_admin = bot.Bot._set_channel_admin("", channel_id)
 

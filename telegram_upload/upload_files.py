@@ -24,17 +24,50 @@ mimetypes.init()
 
 COVER_EXTENSIONS = ['jpg', 'jpeg', 'png']
 RESTRICTED_ALBUMS_TO_UPLOAD = [
-    " Live on ",
     " (Live ",
+    " (live)",
     " (Live)",
+
+    " Live on ",
+
+    " Live in New York",
+    " Live in London",
+    " Live in Concert",
+
     "%COLON% Live From ",
 ]
 RESTRICTED_ALBUMS_TO_PIN = [
+    " The Best Of",
+    " The Greatest Hits",
+
+
+
+
+    " (Piano Versions)",
+
+
+
+    " – Single",
     "(Single)",
+
+
+
 
     " (Club Mixes)",
 
+    " Essential Mixes",
+
+    " (Extended Mixes)",
+    " (The Extended Mixes)",
+
+
+
+    " Weekend Remix)",
+
     "  Remix)",
+    " (Remix)",
+
+
     " (Remixes)",
     " Remixes",
 ]
@@ -204,8 +237,14 @@ class File(FileIO):
         album_name = album_name.replace("%SLASH%", "/")
         album_name = album_name.replace("%COLON%", ":")
         album_name = album_name.replace("%QUESTION%", "?")
+        album_name = album_name.replace("%INCH%", '"')
 
-        extension = folder_name_and_cover_file[1].split('.')[1]
+        try:
+            extension = folder_name_and_cover_file[1].split('.')[1]
+        except:
+            # if there's CD1..CDN folder inside
+            extension = folder_name_and_cover_file[2].split('.')[1]
+
 
         # endregion
 
