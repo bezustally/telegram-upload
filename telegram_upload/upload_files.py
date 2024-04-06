@@ -1,6 +1,11 @@
+
+
+# region imports
+
 import datetime
 import math
 import os
+import re
 
 
 import mimetypes
@@ -16,6 +21,9 @@ from telegram_upload.caption_formatter import CaptionFormatter, FilePath
 from telegram_upload.exceptions import TelegramInvalidFile, ThumbError
 from telegram_upload.utils import scantree, truncate
 from telegram_upload.video import get_video_thumb, video_metadata
+
+# endregion
+
 
 mimetypes.init()
 
@@ -36,8 +44,21 @@ RESTRICTED_ALBUMS_TO_UPLOAD = [
 
     "%COLON% Live From ",
 ]
+
 RESTRICTED_ALBUMS_TO_PIN = [
+    " Best Of ",
+    " The Best of ",
     " The Best Of",
+
+
+
+    " (Instrumental)",
+
+
+    " (Compilation)",
+
+
+
     " The Greatest Hits",
 
 
@@ -62,14 +83,26 @@ RESTRICTED_ALBUMS_TO_PIN = [
 
 
 
+
     " Weekend Remix)",
 
-    "  Remix)",
+    " Remix]",
+    " Remix)",
     " (Remix)",
 
 
+
+    " remixed",
+    " remixed02",
+    " (Remixed)",
+
+
+    " (lo-fi remixes)",
+
+    " Remixes)",
     " (Remixes)",
     " Remixes",
+    " remixes",
 ]
 
 # endregion
@@ -232,12 +265,20 @@ class File(FileIO):
         # region variables
 
         folder_name_and_cover_file = self.path.split('/')
-        album_name = folder_name_and_cover_file[0][11:] # cutting YYYY-MM-DD\s from the beginning
+        try:
+            re.search('^\d{4}-\d{2}-\d{2}', folder_name_and_cover_file[0]).group(0)
+            album_name = folder_name_and_cover_file[0][11:] # cutting YYYY-MM-DD\s from the beginning
+        except:
+            re.search('^\d{4}', folder_name_and_cover_file[0]).group(0)
+            album_name = folder_name_and_cover_file[0]
+
 
         album_name = album_name.replace("%SLASH%", "/")
         album_name = album_name.replace("%COLON%", ":")
         album_name = album_name.replace("%QUESTION%", "?")
         album_name = album_name.replace("%INCH%", '"')
+
+        album_name = album_name.replace("(Deluxe Edition)", "")
 
         try:
             extension = folder_name_and_cover_file[1].split('.')[1]

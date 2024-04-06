@@ -1,3 +1,7 @@
+
+
+# region imports
+
 import asyncio
 import hashlib
 import os
@@ -17,6 +21,11 @@ from telegram_upload.exceptions import TelegramUploadDataLoss, MissingFileError
 from telegram_upload.upload_files import File, COVER_EXTENSIONS, RESTRICTED_ALBUMS_TO_UPLOAD, RESTRICTED_ALBUMS_TO_PIN
 from telegram_upload.utils import grouper, async_to_sync, get_environment_integer
 
+# endregion
+
+
+# region constants
+
 PARALLEL_UPLOAD_BLOCKS = get_environment_integer('TELEGRAM_UPLOAD_PARALLEL_UPLOAD_BLOCKS', 4)
 ALBUM_FILES = 10
 RETRIES = 3
@@ -24,6 +33,7 @@ MAX_RECONNECT_RETRIES = get_environment_integer('TELEGRAM_UPLOAD_MAX_RECONNECT_R
 RECONNECT_TIMEOUT = get_environment_integer('TELEGRAM_UPLOAD_RECONNECT_TIMEOUT', 5)
 MIN_RECONNECT_WAIT = get_environment_integer('TELEGRAM_UPLOAD_MIN_RECONNECT_WAIT', 2)
 
+# endregion
 
 class TelegramUploadClient(TelegramClient):
 	parallel_upload_blocks = PARALLEL_UPLOAD_BLOCKS
@@ -206,7 +216,7 @@ class TelegramUploadClient(TelegramClient):
 							click.echo(f"Last message sent to a `{channel_name}` channel")
 						continue
 				except Exception as e:
-					click.echo(f"have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before setting channel's photo...")
+					click.echo(f"Right now is {str(datetime.now())[11:-7]}... I have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before setting channel's photo")
 					time.sleep(e.seconds)
 					channels_photo_set_2nd_try = bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id])
 					if channels_photo_set_2nd_try:
@@ -265,7 +275,7 @@ class TelegramUploadClient(TelegramClient):
 							service_message = message.pin()
 							service_message.delete()
 						except Exception as e:
-							click.echo(f"have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before this pin...")
+							click.echo(f"Right now is {str(datetime.now())[11:-7]}... I have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before this pin")
 							time.sleep(e.seconds)
 							self.forward_to(message, [channel_id])
 							message.delete()
