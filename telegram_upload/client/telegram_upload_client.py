@@ -154,6 +154,13 @@ class TelegramUploadClient(TelegramClient):
 			entity = channel_id
 			self.get_dialogs()
 
+			# region Deleting last_message
+
+			last_message_entity = async_to_sync(bot.Bot._get_message("", channel_id, bot.LAST_MESSAGE))
+			if last_message_entity.message == bot.LAST_MESSAGE:
+				async_to_sync(bot.Bot._delete_message("", channel_id, last_message_entity.id))
+
+			# endregion
 		else:
 			channel_id, second_channel_id = async_to_sync(bot.Bot._create_channels("", channel_name))
 			if channel_id and second_channel_id:
@@ -192,9 +199,14 @@ class TelegramUploadClient(TelegramClient):
 
 			file_name = file.file_name.split('.')[0]
 
-			# region mine: skipping restricted albums
+			# region mine: skipping restricted & already uploaded albums
 
 			album_name = file.path.split('/')[0]
+
+
+			is_album_already_uploaded = async_to_sync(db.execute_query("check_album", [album_name, channel_id]))[0][0]
+			if is_album_already_uploaded:
+				continue
 
 			should_skip_file = False
 			for restriction in RESTRICTED_ALBUMS_TO_UPLOAD:
@@ -259,10 +271,11 @@ class TelegramUploadClient(TelegramClient):
 				count = 0
 				for root, dirs, files in os.walk(album_name):
 					count += len(files)
+					if ".DS_Store" in files:
+						count -= 1
 
 				if count < bot.MIN_TRACKS_IN_ALBUM_TO_PIN:
 					pinning_flag = False
-				#print('remaining files in folder: ', count)
 
 				# endregion
 
@@ -288,6 +301,10 @@ class TelegramUploadClient(TelegramClient):
 			if message and delete_on_success:
 			#click.echo('Deleting "{}"'.format(file.file_name))
 				os.remove(file.path)
+				if count == 1:
+					print("all tracks uploaded, adding album_name to database...")
+					album_added = async_to_sync(db.execute_query("add_album", [album_name, channel_id]))
+					print(album_added)
 		if not has_files:
 			raise MissingFileError('Files do not exist.')
 		# region mine: setting main account as admin NOT WORKING
