@@ -302,14 +302,15 @@ class TelegramUploadClient(TelegramClient):
 			#click.echo('Deleting "{}"'.format(file.file_name))
 				os.remove(file.path)
 				if count == 1:
-					print("all tracks uploaded, adding album_name to database...")
+					print(f"All tracks uploaded, adding {album_name} to database...")
 					album_added = async_to_sync(db.execute_query("add_album", [album_name, channel_id]))
 					print(album_added)
 		if not has_files:
 			raise MissingFileError('Files do not exist.')
-		# region mine: setting main account as admin NOT WORKING
+		# region mine: adding main account
 
-		#main_account_set_admin = bot.Bot._set_channel_admin("", channel_id)
+		main_account_added = bot.Bot._add_main_account_to_the_channel("", channel_id)
+		print(main_account_added)
 
 		# endregion
 		return messages
