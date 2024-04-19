@@ -32,6 +32,8 @@ mimetypes.init()
 
 COVER_EXTENSIONS = ['jpg', 'jpeg', 'png']
 RESTRICTED_ALBUMS_TO_UPLOAD = [
+
+
     " (Live ",
     " (live)",
     " (Live)",
@@ -46,33 +48,63 @@ RESTRICTED_ALBUMS_TO_UPLOAD = [
 ]
 
 RESTRICTED_ALBUMS_TO_PIN = [
+
+
+    #region Best Of
+
+
     " Best Of ",
     " The Best of ",
     " The Best Of",
 
 
+    #endregion
+
+
+    #region Instumental
+
 
     " (Instrumental)",
+
+
+    #endregion
+
+
+    #region Compilations
 
 
     " (Compilation)",
 
 
+    #endregion
 
-    " The Greatest Hits",
 
-
+    #region etc
 
 
     " (Piano Versions)",
 
+
+    " The Greatest Hits",
+
+
+    "Trailerized%COLON% Covers and Originals",
+
+
+    #endregion
+
+
+    #region Singles
 
 
     " – Single",
     "(Single)",
 
 
+    #endregion
 
+
+    #region Mixes
 
     " (Club Mixes)",
 
@@ -81,7 +113,10 @@ RESTRICTED_ALBUMS_TO_PIN = [
     " (Extended Mixes)",
     " (The Extended Mixes)",
 
+    #endregion
 
+
+    #region Remixes
 
 
     " Weekend Remix)",
@@ -103,6 +138,10 @@ RESTRICTED_ALBUMS_TO_PIN = [
     " (Remixes)",
     " Remixes",
     " remixes",
+
+    #endregion
+
+
 ]
 
 # endregion
