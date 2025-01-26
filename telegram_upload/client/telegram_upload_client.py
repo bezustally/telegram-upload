@@ -221,16 +221,16 @@ class TelegramUploadClient(TelegramClient):
 			if file_name == channel_name:
 				uploaded_image = async_to_sync(self.upload_file(file))
 				try:
-					channels_photo_set = bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id])
+					channels_photo_set = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
 					if channels_photo_set:
 						last_message_sent = _send_last_message()
 						if last_message_sent:
 							click.echo(f"Last message sent to a `{channel_name}` channel")
 						continue
 				except Exception as e:
-					click.echo(f"Right now is {str(datetime.now())[11:-7]}... I have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before setting channel's photo")
-					time.sleep(e.seconds)
-					channels_photo_set_2nd_try = bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id])
+					#click.echo(f"Right now is {str(datetime.now())[11:-7]}... I have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before setting channel's photo")
+					#time.sleep(e.seconds)
+					channels_photo_set_2nd_try = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
 					if channels_photo_set_2nd_try:
 						last_message_sent = _send_last_message()
 						if last_message_sent:
@@ -295,7 +295,7 @@ class TelegramUploadClient(TelegramClient):
 								secs = remaining.seconds % 60
 								print(f"Waiting {mins:02d}:{secs:02d} before pinning... (until {str(end_time)[11:-7]})", end='\r')
 								time.sleep(1)
-							print()
+							print()  # Move to the next line after countdown
 							self.forward_to(message, [channel_id])
 							message.delete()
 							async_to_sync(bot.Bot._pin_last_message("", channel_id))
@@ -319,9 +319,34 @@ class TelegramUploadClient(TelegramClient):
 		# region mine: adding main account
 
 		main_account_added = async_to_sync(bot.Bot._add_main_account_to_the_channel("", channel_id))
-		print(main_account_added)
+		if main_account_added:
+			print("Main account added")
+		else:
+			print("Error on adding main account")
+
 
 		# endregion
+
+		# region mine: leaving 1st created channel
+
+		first_channel_left = async_to_sync(bot.Bot._leave_channel("", channel_id))
+		if first_channel_left:
+			print("1st channel left")
+		else:
+			print("Error on leaving 1st channel")
+
+
+		# endregion
+
+		# region mine: archiving 2nd created channel
+
+		second_channel_archived = async_to_sync(bot.Bot._archive_channel("", second_channel_id))
+		if second_channel_archived:
+			print("Second channel archived")
+		else:
+			print("Error on archiving 2nd channel")
+		# endregion
+
 		return messages
 
 
