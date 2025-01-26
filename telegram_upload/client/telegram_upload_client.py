@@ -287,9 +287,15 @@ class TelegramUploadClient(TelegramClient):
 						try:
 							service_message = message.pin()
 							service_message.delete()
-						except Exception as e:
-							click.echo(f"Right now is {str(datetime.now())[11:-7]}... I have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before this pin")
-							time.sleep(e.seconds)
+						except FloodWaitError as e:
+							end_time = datetime.now() + timedelta(seconds=e.seconds)
+							while datetime.now() < end_time:
+								remaining = end_time - datetime.now()
+								mins = remaining.seconds // 60
+								secs = remaining.seconds % 60
+								print(f"Waiting {mins:02d}:{secs:02d} before pinning... (until {str(end_time)[11:-7]})", end='\r')
+								time.sleep(1)
+							print()
 							self.forward_to(message, [channel_id])
 							message.delete()
 							async_to_sync(bot.Bot._pin_last_message("", channel_id))
@@ -302,14 +308,17 @@ class TelegramUploadClient(TelegramClient):
 			#click.echo('Deleting "{}"'.format(file.file_name))
 				os.remove(file.path)
 				if count == 1:
-					print(f"All tracks uploaded, adding {album_name} to database...")
+					#print(f"All tracks uploaded, adding album to database...")
 					album_added = async_to_sync(db.execute_query("add_album", [album_name, channel_id]))
-					print(album_added)
+					if album_added:
+						print(f'"{album_name}" added to database')
+					else:
+						print(f'Failed to add "{album_name}" to database')
 		if not has_files:
 			raise MissingFileError('Files do not exist.')
 		# region mine: adding main account
 
-		main_account_added = bot.Bot._add_main_account_to_the_channel("", channel_id)
+		main_account_added = async_to_sync(bot.Bot._add_main_account_to_the_channel("", channel_id))
 		print(main_account_added)
 
 		# endregion
