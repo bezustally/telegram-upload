@@ -304,13 +304,14 @@ class File(FileIO):
         # region variables
 
         folder_name_and_cover_file = self.path.split('/')
-        try:
-            re.search('^\d{4}-\d{2}-\d{2}', folder_name_and_cover_file[0]).group(0)
-            album_name = folder_name_and_cover_file[0][11:] # cutting YYYY-MM-DD\s from the beginning
-        except:
-            re.search('^\d{4}', folder_name_and_cover_file[0]).group(0)
-            album_name = folder_name_and_cover_file[0]
 
+        # Check for a match for the year
+        year_match = re.search('^\d{4}', folder_name_and_cover_file[0])
+        if year_match:
+            album_name = folder_name_and_cover_file[0][11:]  # cutting YYYY-MM-DD\s from the beginning
+        else:
+            # Handle the case where the year is not found
+            album_name = folder_name_and_cover_file[0]  # Use the full folder name or set a default value
 
         album_name = album_name.replace("%SLASH%", "/")
         album_name = album_name.replace("%COLON%", ":")
@@ -324,7 +325,6 @@ class File(FileIO):
         except:
             # if there's CD1..CDN folder inside
             extension = folder_name_and_cover_file[2].split('.')[1]
-
 
         # endregion
 

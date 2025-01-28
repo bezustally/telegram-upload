@@ -3,7 +3,7 @@ import json
 import os
 import re
 import sys
-from distutils.version import StrictVersion
+from distutils.version import StrictVersion # type: ignore
 from typing import Union
 from urllib.parse import urlparse
 

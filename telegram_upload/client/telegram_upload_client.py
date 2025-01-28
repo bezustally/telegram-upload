@@ -60,8 +60,7 @@ class TelegramUploadClient(TelegramClient):
 		return self._get_response_message(random_ids, result, entity)
 
 
-	def send_files_as_album(self, entity, files, delete_on_success=False, print_file_id=False,
-							forward=()):
+	def send_files_as_album(self, entity, files, delete_on_success=False, print_file_id=False, forward=()):
 		for files_group in grouper(ALBUM_FILES, files):
 			media = self.send_files(entity, files_group, delete_on_success, print_file_id, forward, send_as_media=True)
 			async_to_sync(self._send_album_media(entity, media))
@@ -74,8 +73,7 @@ class TelegramUploadClient(TelegramClient):
 								 progress_callback=progress, attributes=file.file_attributes)
 		if hasattr(message.media, 'document') and file.file_size != message.media.document.size:
 			raise TelegramUploadDataLoss(
-				'Remote document size: {} bytes (local file size: {} bytes)'.format(
-					message.media.document.size, file.file_size))
+				'Remote document size: {} bytes (local file size: {} bytes)'.format(message.media.document.size, file.file_size))
 		return message
 
 
@@ -145,6 +143,11 @@ class TelegramUploadClient(TelegramClient):
 		channel_name = os.getcwd().split('/')[-1]
 		db = bot.Database()
 		existing_discography = async_to_sync(db.execute_query("check_discography", channel_name))
+
+		if not existing_discography:
+			misspelled_discography = async_to_sync(db.execute_query("check_discography_misspelled", channel_name))
+			if misspelled_discography:
+				existing_discography = async_to_sync(db.execute_query("check_discography", misspelled_discography[0][0]))
 
 		# endregion
 
@@ -228,14 +231,30 @@ class TelegramUploadClient(TelegramClient):
 							click.echo(f"Last message sent to a `{channel_name}` channel")
 						continue
 				except Exception as e:
-					#click.echo(f"Right now is {str(datetime.now())[11:-7]}... I have to wait until {str(datetime.now() + timedelta(seconds=e.seconds))[11:-7]} before setting channel's photo")
-					#time.sleep(e.seconds)
-					channels_photo_set_2nd_try = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
-					if channels_photo_set_2nd_try:
-						last_message_sent = _send_last_message()
-						if last_message_sent:
-							click.echo(f"Last message sent to a `{channel_name}` channel")
-						continue
+					end_time = datetime.now() + timedelta(seconds=e.seconds)
+					while datetime.now() < end_time:
+						remaining = end_time - datetime.now()
+						mins = remaining.seconds // 60
+						secs = remaining.seconds % 60
+						print(f"Waiting {mins:02d}:{secs:02d} before uploading channel's photo... (until {str(end_time)[11:-7]})", end='\r')
+						time.sleep(1)
+						print()  # Move to the next line after countdown
+					try:
+						channels_photo_set_2nd_try = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
+					except Exception as e:
+						end_time = datetime.now() + timedelta(seconds=e.seconds)
+						while datetime.now() < end_time:
+							remaining = end_time - datetime.now()
+							mins = remaining.seconds // 60
+							secs = remaining.seconds % 60
+							print(f"Waiting {mins:02d}:{secs:02d} before uploading 2nd channel's photo... (until {str(end_time)[11:-7]})", end='\r')
+							time.sleep(1)
+							print()  # Move to the next line after countdown
+						if channels_photo_set_2nd_try:
+							last_message_sent = _send_last_message()
+							if last_message_sent:
+								click.echo(f"Last message sent to a `{channel_name}` channel")
+							continue
 
 			# endregion
 			try:
