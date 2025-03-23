@@ -1,11 +1,10 @@
-
-
 # region imports
 
 import datetime
 import math
 import os
 import re
+import time
 
 
 import mimetypes
@@ -320,11 +319,21 @@ class File(FileIO):
 
         album_name = album_name.replace("(Deluxe Edition)", "")
 
+        # Extract extension safely
+        extension = None
         try:
-            extension = folder_name_and_cover_file[1].split('.')[1]
-        except:
-            # if there's CD1..CDN folder inside
-            extension = folder_name_and_cover_file[2].split('.')[1]
+            # Try to get extension from the filename
+            if len(folder_name_and_cover_file) > 1 and '.' in folder_name_and_cover_file[-1]:
+                extension = folder_name_and_cover_file[-1].split('.')[-1]
+            # If we have a deeper path structure, try with index 1
+            elif len(folder_name_and_cover_file) > 1 and '.' in folder_name_and_cover_file[1]:
+                extension = folder_name_and_cover_file[1].split('.')[-1]
+            # If even deeper structure, try with index 2
+            elif len(folder_name_and_cover_file) > 2 and '.' in folder_name_and_cover_file[2]:
+                extension = folder_name_and_cover_file[2].split('.')[-1]
+        except Exception as e:
+            print(f"Error extracting extension: {e}")
+            extension = None
 
         # endregion
 

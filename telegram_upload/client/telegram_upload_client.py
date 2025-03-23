@@ -1,5 +1,3 @@
-
-
 # region imports
 
 import asyncio
@@ -34,6 +32,7 @@ RECONNECT_TIMEOUT = get_environment_integer('TELEGRAM_UPLOAD_RECONNECT_TIMEOUT',
 MIN_RECONNECT_WAIT = get_environment_integer('TELEGRAM_UPLOAD_MIN_RECONNECT_WAIT', 2)
 
 # endregion
+
 
 class TelegramUploadClient(TelegramClient):
 	parallel_upload_blocks = PARALLEL_UPLOAD_BLOCKS
@@ -238,7 +237,6 @@ class TelegramUploadClient(TelegramClient):
 						secs = remaining.seconds % 60
 						print(f"Waiting {mins:02d}:{secs:02d} before uploading channel's photo... (until {str(end_time)[11:-7]})", end='\r')
 						time.sleep(1)
-						print()  # Move to the next line after countdown
 					try:
 						channels_photo_set_2nd_try = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
 					except Exception as e:
@@ -249,7 +247,6 @@ class TelegramUploadClient(TelegramClient):
 							secs = remaining.seconds % 60
 							print(f"Waiting {mins:02d}:{secs:02d} before uploading 2nd channel's photo... (until {str(end_time)[11:-7]})", end='\r')
 							time.sleep(1)
-							print()  # Move to the next line after countdown
 						if channels_photo_set_2nd_try:
 							last_message_sent = _send_last_message()
 							if last_message_sent:
