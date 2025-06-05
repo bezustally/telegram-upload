@@ -1,3 +1,9 @@
+# Description:             Uploading discographies to Telegram
+
+# Version:                 4.0
+# Updated:                 2025-06-07
+
+
 # region imports
 
 import datetime
@@ -21,6 +27,7 @@ from telegram_upload.exceptions import TelegramInvalidFile, ThumbError
 from telegram_upload.utils import scantree, truncate
 from telegram_upload.video import get_video_thumb, video_metadata
 
+
 # endregion
 
 
@@ -30,6 +37,7 @@ mimetypes.init()
 # region mine
 
 COVER_EXTENSIONS = ['jpg', 'jpeg', 'png']
+
 RESTRICTED_ALBUMS_TO_UPLOAD = [
 
 

@@ -6,6 +6,8 @@ import os
 import time
 from datetime import datetime, timedelta
 from typing import Iterable, Optional
+import re
+from collections import defaultdict
 
 import click
 from telethon import TelegramClient, utils, helpers, custom
@@ -31,8 +33,21 @@ MAX_RECONNECT_RETRIES = get_environment_integer('TELEGRAM_UPLOAD_MAX_RECONNECT_R
 RECONNECT_TIMEOUT = get_environment_integer('TELEGRAM_UPLOAD_RECONNECT_TIMEOUT', 5)
 MIN_RECONNECT_WAIT = get_environment_integer('TELEGRAM_UPLOAD_MIN_RECONNECT_WAIT', 2)
 
-# endregion
+# Плейсхолдеры для замены
+PLACEHOLDER_REPLACEMENTS = {
+	'%COLON%': ':',
+	'%INCH%': '"',
+	'%QUESTION%': '?',
+	'%SLASH%': '/',
+}
 
+def clean_album_name(album_name: str) -> str:
+	"""
+	Очищает название альбома от плейсхолдеров, заменяя их на соответствующие символы.
+	"""
+	for placeholder, replacement in PLACEHOLDER_REPLACEMENTS.items():
+		album_name = album_name.replace(placeholder, replacement)
+	return album_name
 
 class TelegramUploadClient(TelegramClient):
 	parallel_upload_blocks = PARALLEL_UPLOAD_BLOCKS
@@ -182,154 +197,172 @@ class TelegramUploadClient(TelegramClient):
 					self.get_dialogs()
 
 		# endregion
+		# region mine: grouping files by album
+		albums = defaultdict(list)
 		for file in files:
-			has_files = True
-			thumb = file.get_thumbnail()
-			# region mine: setting channel's photo & sending last message
-
-			# region mine: sending last message function
-
-			def _send_last_message():
-				async_to_sync(bot.Bot._send_message("", channel_id, bot.LAST_MESSAGE))
-
-			# endregion
-
-			# region mine: skipping .DS_Store
-			if file.file_name == ".DS_Store":
-				continue
-			# endregion
-
-			file_name = file.file_name.split('.')[0]
-
-			# region mine: skipping restricted & already uploaded albums
-
 			album_name = file.path.split('/')[0]
+			albums[album_name].append(file)
+		# endregion
 
-
-			is_album_already_uploaded = async_to_sync(db.execute_query("check_album", [album_name, channel_id]))[0][0]
+		for album_name, album_files in albums.items():
+			clean_name = clean_album_name(album_name)
+			is_album_already_uploaded = async_to_sync(db.execute_query("check_album", [clean_name, channel_id]))[0][0]
 			if is_album_already_uploaded:
 				continue
 
-			should_skip_file = False
-			for restriction in RESTRICTED_ALBUMS_TO_UPLOAD:
-				if restriction in album_name:
-					should_skip_file = True
+			count = 0
+			successfully_uploaded = False
+			for file in album_files:
+				has_files = True
+				thumb = file.get_thumbnail()
+				# region mine: setting channel's photo & sending last message
 
-			if should_skip_file:
-				continue
+				# region mine: sending last message function
 
-			# endregion
+				def _send_last_message():
+					async_to_sync(bot.Bot._send_message("", channel_id, bot.LAST_MESSAGE))
 
-			if file_name == channel_name:
-				uploaded_image = async_to_sync(self.upload_file(file))
-				try:
-					channels_photo_set = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
-					if channels_photo_set:
-						last_message_sent = _send_last_message()
-						if last_message_sent:
-							click.echo(f"Last message sent to a `{channel_name}` channel")
-						continue
-				except Exception as e:
-					end_time = datetime.now() + timedelta(seconds=e.seconds)
-					while datetime.now() < end_time:
-						remaining = end_time - datetime.now()
-						mins = remaining.seconds // 60
-						secs = remaining.seconds % 60
-						print(f"Waiting {mins:02d}:{secs:02d} before uploading channel's photo... (until {str(end_time)[11:-7]})", end='\r')
-						time.sleep(1)
+				# endregion
+
+				# region mine: skipping .DS_Store
+				if file.file_name == ".DS_Store":
+					continue
+				# endregion
+
+				file_name = file.file_name.split('.')[0]
+
+				# region mine: skipping restricted & already uploaded albums
+
+				should_skip_file = False
+				for restriction in RESTRICTED_ALBUMS_TO_UPLOAD:
+					if restriction in album_name:
+						should_skip_file = True
+
+				if should_skip_file:
+					continue
+
+				# endregion
+
+				if file_name == channel_name:
+					uploaded_image = async_to_sync(self.upload_file(file))
 					try:
-						channels_photo_set_2nd_try = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
+						channels_photo_set = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
+						if channels_photo_set:
+							last_message_sent = _send_last_message()
+							if last_message_sent:
+								click.echo(f"Last message sent to a `{channel_name}` channel")
+							continue
 					except Exception as e:
 						end_time = datetime.now() + timedelta(seconds=e.seconds)
 						while datetime.now() < end_time:
 							remaining = end_time - datetime.now()
 							mins = remaining.seconds // 60
 							secs = remaining.seconds % 60
-							print(f"Waiting {mins:02d}:{secs:02d} before uploading 2nd channel's photo... (until {str(end_time)[11:-7]})", end='\r')
+							print(f"Waiting {mins:02d}:{secs:02d} before uploading channel's photo... (until {str(end_time)[11:-7]})", end='\r')
 							time.sleep(1)
-						if channels_photo_set_2nd_try:
-							last_message_sent = _send_last_message()
-							if last_message_sent:
-								click.echo(f"Last message sent to a `{channel_name}` channel")
-							continue
-
-			# endregion
-			try:
-				message = self.send_one_file(entity, file, send_as_media, thumb=thumb)
-			finally:
-				if thumb and not file.is_custom_thumbnail and os.path.lexists(thumb):
-					os.remove(thumb)
-			if message is None:
-				click.echo('Failed to upload file "{}"'.format(file.file_name), err=True)
-			if message and print_file_id:
-				click.echo('Uploaded successfully "{}" (file_id {})'.format(file.file_name,
-																			pack_bot_file_id(message.media)))
-			if message:
-				# region mine: forwarding message to 2nd channel
-
-				forward = [second_channel_id]
-
-				# endregion
-				self.forward_to(message, forward)
-				# region mine: pinning cover message + forwading messages to 2nd channel
-
-				# region mine: excluding singles & so on from pinning function
-
-				pinning_flag = True
-				for restriction in RESTRICTED_ALBUMS_TO_PIN:
-					if restriction in album_name:
-						pinning_flag = False
-
-				# endregion
-
-				# region mine: counting tracks in album:
-
-				count = 0
-				for root, dirs, files in os.walk(album_name):
-					count += len(files)
-					if ".DS_Store" in files:
-						count -= 1
-
-				if count < bot.MIN_TRACKS_IN_ALBUM_TO_PIN:
-					pinning_flag = False
-
-				# endregion
-
-				# region mine: pinning covers
-
-				if pinning_flag:
-					extension = file.file_name.split('.')[-1]
-					if extension in COVER_EXTENSIONS:
 						try:
-							service_message = message.pin()
-							service_message.delete()
-						except FloodWaitError as e:
+							channels_photo_set_2nd_try = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
+						except Exception as e:
 							end_time = datetime.now() + timedelta(seconds=e.seconds)
 							while datetime.now() < end_time:
 								remaining = end_time - datetime.now()
 								mins = remaining.seconds // 60
 								secs = remaining.seconds % 60
-								print(f"Waiting {mins:02d}:{secs:02d} before pinning... (until {str(end_time)[11:-7]})", end='\r')
+								print(f"Waiting {mins:02d}:{secs:02d} before uploading 2nd channel's photo... (until {str(end_time)[11:-7]})", end='\r')
 								time.sleep(1)
-							print()  # Move to the next line after countdown
-							self.forward_to(message, [channel_id])
-							message.delete()
-							async_to_sync(bot.Bot._pin_last_message("", channel_id))
+							if channels_photo_set_2nd_try:
+								last_message_sent = _send_last_message()
+								if last_message_sent:
+									click.echo(f"Last message sent to a `{channel_name}` channel")
+								continue
 
 				# endregion
+				try:
+					message = self.send_one_file(entity, file, send_as_media, thumb=thumb)
+				finally:
+					if thumb and not file.is_custom_thumbnail and os.path.lexists(thumb):
+						os.remove(thumb)
+				if message is None:
+					click.echo('Failed to upload file "{}"'.format(file.file_name), err=True)
+				if message and print_file_id:
+					click.echo('Uploaded successfully "{}" (file_id {})'.format(file.file_name,
+																				pack_bot_file_id(message.media)))
+				if message:
+					# region mine: forwarding message to 2nd channel
 
-				# endregion
-				messages.append(message)
-			if message and delete_on_success:
-			#click.echo('Deleting "{}"'.format(file.file_name))
-				os.remove(file.path)
-				if count == 1:
-					#print(f"All tracks uploaded, adding album to database...")
-					album_added = async_to_sync(db.execute_query("add_album", [album_name, channel_id]))
-					if album_added:
-						print(f'"{album_name}" added to database')
-					else:
-						print(f'Failed to add "{album_name}" to database')
+					forward = [second_channel_id]
+
+					# endregion
+					self.forward_to(message, forward)
+					# region mine: pinning cover message + forwading messages to 2nd channel
+
+					# region mine: excluding singles & so on from pinning function
+
+					pinning_flag = True
+					for restriction in RESTRICTED_ALBUMS_TO_PIN:
+						if restriction in album_name:
+							pinning_flag = False
+
+					# endregion
+
+					# region mine: counting tracks in album:
+
+					count += len(album_files)
+					if ".DS_Store" in album_files:
+						count -= 1
+
+					if count < bot.MIN_TRACKS_IN_ALBUM_TO_PIN:
+						pinning_flag = False
+
+					# endregion
+
+					# region mine: pinning covers
+
+					if pinning_flag:
+						extension = file.file_name.split('.')[-1]
+						if extension in COVER_EXTENSIONS:
+							try:
+								service_message = message.pin()
+								service_message.delete()
+							except FloodWaitError as e:
+								end_time = datetime.now() + timedelta(seconds=e.seconds)
+								while datetime.now() < end_time:
+									remaining = end_time - datetime.now()
+									mins = remaining.seconds // 60
+									secs = remaining.seconds % 60
+									print(f"Waiting {mins:02d}:{secs:02d} before pinning... (until {str(end_time)[11:-7]})", end='\r')
+									time.sleep(1)
+								print()  # Move to the next line after countdown
+								self.forward_to(message, [channel_id])
+								message.delete()
+								async_to_sync(bot.Bot._pin_last_message("", channel_id))
+
+					# endregion
+
+					# endregion
+					messages.append(message)
+				if message and delete_on_success:
+				#click.echo('Deleting "{}"'.format(file.file_name))
+					os.remove(file.path)
+					if count == 1:
+						#print(f"All tracks uploaded, adding album to database...")
+						# Очищаем название альбома перед добавлением в базу
+						clean_name = clean_album_name(album_name)
+						album_added = async_to_sync(db.execute_query("add_album", [clean_name, channel_id]))
+						if album_added:
+							print(f'"{clean_name}" added to database')
+						else:
+							print(f'Failed to add "{clean_name}" to database')
+				if message:
+					successfully_uploaded = True
+
+			# После загрузки всех файлов альбома, если хотя бы один файл был успешно загружен, добавляем альбом в БД
+			if successfully_uploaded:
+				album_added = async_to_sync(db.execute_query("add_album", [clean_name, channel_id]))
+				if album_added:
+					print(f'"{clean_name}" added to database')
+				else:
+					print(f'Failed to add "{clean_name}" to database')
 		if not has_files:
 			raise MissingFileError('Files do not exist.')
 		# region mine: adding main account
