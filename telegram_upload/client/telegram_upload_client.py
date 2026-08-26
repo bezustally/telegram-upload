@@ -334,9 +334,8 @@ class TelegramUploadClient(TelegramClient):
 									print(f"Waiting {mins:02d}:{secs:02d} before pinning... (until {str(end_time)[11:-7]})", end='\r')
 									time.sleep(1)
 								print()  # Move to the next line after countdown
-								self.forward_to(message, [channel_id])
-								message.delete()
-								async_to_sync(bot_tg.pin_last_message(channel_id))
+								service_message = message.pin()
+								service_message.delete()
 
 					# endregion
 
