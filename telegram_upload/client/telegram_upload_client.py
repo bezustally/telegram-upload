@@ -153,15 +153,22 @@ class TelegramUploadClient(TelegramClient):
 
 		# region variables
 
-		import bot
+		import sys as _sys
+		_FFM_PATH = os.environ.get('FFM_PATH', '/Users/bezustally/Sites/ffm')
+		if _FFM_PATH not in _sys.path:
+			_sys.path.insert(0, _FFM_PATH)
+		from bot import db as bot_db
+		from bot import telegram as bot_tg
+
+		bot_tg._client = self
+
 		channel_name = os.getcwd().split('/')[-1]
-		db = bot.Database()
-		existing_discography = async_to_sync(db.execute_query("check_discography", channel_name))
+		existing_discography = async_to_sync(bot_db.check_discography(channel_name))
 
 		if not existing_discography:
-			misspelled_discography = async_to_sync(db.execute_query("check_discography_misspelled", channel_name))
-			if misspelled_discography:
-				existing_discography = async_to_sync(db.execute_query("check_discography", misspelled_discography[0][0]))
+			misspelled = async_to_sync(bot_db.check_discography_misspelled(channel_name))
+			if misspelled:
+				existing_discography = async_to_sync(bot_db.check_discography(misspelled[0]))
 
 		# endregion
 
@@ -173,28 +180,26 @@ class TelegramUploadClient(TelegramClient):
 
 			# region Deleting last_message
 
-			last_message_entity = async_to_sync(bot.Bot._get_message("", channel_id, bot.LAST_MESSAGE))
-			if last_message_entity.message == bot.LAST_MESSAGE:
-				async_to_sync(bot.Bot._delete_message("", channel_id, last_message_entity.id))
+			last_message_entity = async_to_sync(bot_tg.get_message(channel_id, bot_tg.LAST_MESSAGE))
+			if last_message_entity and last_message_entity.message == bot_tg.LAST_MESSAGE:
+				async_to_sync(bot_tg.delete_message(channel_id, last_message_entity.id))
 
 			# endregion
 		else:
-			channel_id, second_channel_id = async_to_sync(bot.Bot._create_channels("", channel_name))
+			channel_id, second_channel_id = async_to_sync(bot_tg.create_channels(channel_name))
 			if channel_id and second_channel_id:
-				# region chore
-
-				payload = []
-				payload.append(channel_name)
-				payload.append(channel_id)
-				payload.append(second_channel_id)
-
-				# endregion
-
-				channels_added_to_db = async_to_sync(db.execute_query("add_discography", payload))
+				_deezer_id = os.environ.get('ARTIST_DEEZER_ID')
+				_deezer_id_int = int(_deezer_id) if _deezer_id and _deezer_id.isdigit() else None
+				channels_added_to_db = async_to_sync(bot_db.add_discography(channel_name, channel_id, second_channel_id, _deezer_id_int))
 				if channels_added_to_db:
 					print('Channels added to database')
 					entity = channel_id
 					self.get_dialogs()
+
+		if existing_discography:
+			_deezer_id = os.environ.get('ARTIST_DEEZER_ID')
+			if _deezer_id and _deezer_id.isdigit():
+				async_to_sync(bot_db.set_artist_deezer_id(channel_name, int(_deezer_id)))
 
 		# endregion
 		# region mine: grouping files by album
@@ -206,13 +211,17 @@ class TelegramUploadClient(TelegramClient):
 
 		for album_name, album_files in albums.items():
 			clean_name = clean_album_name(album_name)
-			is_album_already_uploaded = async_to_sync(db.execute_query("check_album", [clean_name, channel_id]))[0][0]
+			is_album_already_uploaded = async_to_sync(bot_db.check_album(clean_name, channel_id))[0][0]
 			if is_album_already_uploaded:
 				continue
 
+			album_track_count = sum(1 for f in album_files if f.file_name != ".DS_Store" and f.file_name.split('.')[-1] not in COVER_EXTENSIONS)
 			count = 0
 			successfully_uploaded = False
 			for file in album_files:
+				if file.file_name == ".DS_Store":
+					continue
+				count += 1
 				has_files = True
 				thumb = file.get_thumbnail()
 				# region mine: setting channel's photo & sending last message
@@ -220,7 +229,7 @@ class TelegramUploadClient(TelegramClient):
 				# region mine: sending last message function
 
 				def _send_last_message():
-					async_to_sync(bot.Bot._send_message("", channel_id, bot.LAST_MESSAGE))
+					async_to_sync(bot_tg.send_message(channel_id, bot_tg.LAST_MESSAGE))
 
 				# endregion
 
@@ -246,7 +255,7 @@ class TelegramUploadClient(TelegramClient):
 				if file_name == channel_name:
 					uploaded_image = async_to_sync(self.upload_file(file))
 					try:
-						channels_photo_set = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
+						channels_photo_set = async_to_sync(bot_tg.set_channel_photo(uploaded_image, [channel_id, second_channel_id]))
 						if channels_photo_set:
 							last_message_sent = _send_last_message()
 							if last_message_sent:
@@ -261,7 +270,7 @@ class TelegramUploadClient(TelegramClient):
 							print(f"Waiting {mins:02d}:{secs:02d} before uploading channel's photo... (until {str(end_time)[11:-7]})", end='\r')
 							time.sleep(1)
 						try:
-							channels_photo_set_2nd_try = async_to_sync(bot.Bot._set_channel_photo("", uploaded_image, [channel_id, second_channel_id]))
+							channels_photo_set_2nd_try = async_to_sync(bot_tg.set_channel_photo(uploaded_image, [channel_id, second_channel_id]))
 						except Exception as e:
 							end_time = datetime.now() + timedelta(seconds=e.seconds)
 							while datetime.now() < end_time:
@@ -305,16 +314,8 @@ class TelegramUploadClient(TelegramClient):
 
 					# endregion
 
-					# region mine: counting tracks in album:
-
-					count += len(album_files)
-					if ".DS_Store" in album_files:
-						count -= 1
-
-					if count < bot.MIN_TRACKS_IN_ALBUM_TO_PIN:
+					if album_track_count < bot_tg.MIN_TRACKS_IN_ALBUM_TO_PIN:
 						pinning_flag = False
-
-					# endregion
 
 					# region mine: pinning covers
 
@@ -335,7 +336,7 @@ class TelegramUploadClient(TelegramClient):
 								print()  # Move to the next line after countdown
 								self.forward_to(message, [channel_id])
 								message.delete()
-								async_to_sync(bot.Bot._pin_last_message("", channel_id))
+								async_to_sync(bot_tg.pin_last_message(channel_id))
 
 					# endregion
 
@@ -348,7 +349,7 @@ class TelegramUploadClient(TelegramClient):
 						#print(f"All tracks uploaded, adding album to database...")
 						# Очищаем название альбома перед добавлением в базу
 						clean_name = clean_album_name(album_name)
-						album_added = async_to_sync(db.execute_query("add_album", [clean_name, channel_id]))
+						album_added = async_to_sync(bot_db.add_album(clean_name, channel_id))
 						if album_added:
 							print(f'"{clean_name}" added to database')
 						else:
@@ -358,7 +359,7 @@ class TelegramUploadClient(TelegramClient):
 
 			# После загрузки всех файлов альбома, если хотя бы один файл был успешно загружен, добавляем альбом в БД
 			if successfully_uploaded:
-				album_added = async_to_sync(db.execute_query("add_album", [clean_name, channel_id]))
+				album_added = async_to_sync(bot_db.add_album(clean_name, channel_id))
 				if album_added:
 					print(f'"{clean_name}" added to database')
 				else:
@@ -367,7 +368,7 @@ class TelegramUploadClient(TelegramClient):
 			raise MissingFileError('Files do not exist.')
 		# region mine: adding main account
 
-		main_account_added = async_to_sync(bot.Bot._add_main_account_to_the_channel("", channel_id))
+		main_account_added = async_to_sync(bot_tg.add_main_account_to_the_channel(channel_id))
 		if main_account_added:
 			print("Main account added")
 		else:
@@ -378,7 +379,7 @@ class TelegramUploadClient(TelegramClient):
 
 		# region mine: leaving 1st created channel
 
-		first_channel_left = async_to_sync(bot.Bot._leave_channel("", channel_id))
+		first_channel_left = async_to_sync(bot_tg.leave_channel(channel_id))
 		if first_channel_left:
 			print("1st channel left")
 		else:
@@ -389,11 +390,11 @@ class TelegramUploadClient(TelegramClient):
 
 		# region mine: archiving 2nd created channel
 
-		second_channel_archived = async_to_sync(bot.Bot._archive_channel("", second_channel_id))
-		if second_channel_archived:
-			print("Second channel archived")
+		second_channel_left = async_to_sync(bot_tg.leave_channel(second_channel_id))
+		if second_channel_left:
+			print("2nd channel left")
 		else:
-			print("Error on archiving 2nd channel")
+			print("Error on leaving 2nd channel")
 		# endregion
 
 		return messages
