@@ -63,6 +63,47 @@ class TelegramUploadClient(TelegramClient):
 			self.forward_messages(destination, [message], drop_author=True)
 
 
+	def _pin_cover(self, message):
+		"""Закрепить обложку альбома и удалить сервисное сообщение о закреплении.
+
+		Устойчив к FloodWaitError и разрыву соединения во время длинного ожидания:
+		после флуд-паузы сессия переподключается, повторная попытка не роняет скрипт.
+		"""
+		def _wait_flood(e):
+			end_time = datetime.now() + timedelta(seconds=e.seconds)
+			while datetime.now() < end_time:
+				remaining = end_time - datetime.now()
+				mins = remaining.seconds // 60
+				secs = remaining.seconds % 60
+				print(f"Waiting {mins:02d}:{secs:02d} before pinning... (until {str(end_time)[11:-7]})", end='\r')
+				time.sleep(1)
+			print()  # Move to the next line after countdown
+			try:
+				async_to_sync(self.reconnect())
+			except Exception:
+				pass
+
+		try:
+			service_message = message.pin()
+		except FloodWaitError as e:
+			_wait_flood(e)
+			try:
+				service_message = message.pin()
+			except FloodWaitError:
+				service_message = None
+			except Exception:
+				service_message = None
+		except Exception:
+			service_message = None
+
+		if service_message is not None:
+			try:
+				service_message.delete()
+			except Exception:
+				pass
+
+
+
 	async def _send_album_media(self, entity, media):
 		entity = await self.get_input_entity(entity)
 		request = functions.messages.SendMultiMediaRequest(
@@ -163,10 +204,13 @@ class TelegramUploadClient(TelegramClient):
 		bot_tg._client = self
 
 		channel_name = os.getcwd().split('/')[-1]
+		print(f"[FFM] channel_name from cwd = {channel_name!r}  (cwd={os.getcwd()})", flush=True)
 		existing_discography = async_to_sync(bot_db.check_discography(channel_name))
+		print(f"[FFM] existing_discography for {channel_name!r}: {existing_discography!r}", flush=True)
 
 		if not existing_discography:
 			misspelled = async_to_sync(bot_db.check_discography_misspelled(channel_name))
+			print(f"[FFM] misspelled for {channel_name!r}: {misspelled!r}", flush=True)
 			if misspelled:
 				existing_discography = async_to_sync(bot_db.check_discography(misspelled[0]))
 
@@ -186,10 +230,13 @@ class TelegramUploadClient(TelegramClient):
 
 			# endregion
 		else:
+			print(f"[FFM] NO existing discography -> calling create_channels({channel_name!r})", flush=True)
 			channel_id, second_channel_id = async_to_sync(bot_tg.create_channels(channel_name))
+			print(f"[FFM] create_channels returned channel_id={channel_id!r} second={second_channel_id!r}", flush=True)
 			if channel_id and second_channel_id:
 				_deezer_id = os.environ.get('ARTIST_DEEZER_ID')
 				_deezer_id_int = int(_deezer_id) if _deezer_id and _deezer_id.isdigit() else None
+				print(f"[FFM] add_discography({channel_name!r}, {channel_id!r}, {second_channel_id!r}, {_deezer_id_int!r})", flush=True)
 				channels_added_to_db = async_to_sync(bot_db.add_discography(channel_name, channel_id, second_channel_id, _deezer_id_int))
 				if channels_added_to_db:
 					print('Channels added to database')
@@ -322,20 +369,7 @@ class TelegramUploadClient(TelegramClient):
 					if pinning_flag:
 						extension = file.file_name.split('.')[-1]
 						if extension in COVER_EXTENSIONS:
-							try:
-								service_message = message.pin()
-								service_message.delete()
-							except FloodWaitError as e:
-								end_time = datetime.now() + timedelta(seconds=e.seconds)
-								while datetime.now() < end_time:
-									remaining = end_time - datetime.now()
-									mins = remaining.seconds // 60
-									secs = remaining.seconds % 60
-									print(f"Waiting {mins:02d}:{secs:02d} before pinning... (until {str(end_time)[11:-7]})", end='\r')
-									time.sleep(1)
-								print()  # Move to the next line after countdown
-								service_message = message.pin()
-								service_message.delete()
+							self._pin_cover(message)
 
 					# endregion
 
