@@ -407,7 +407,12 @@ class TelegramUploadClient(TelegramClient):
 		else:
 			print("Error on adding main account")
 
+		# endregion
 
+		# region mine: sending last message after all albums uploaded
+		last_message_sent = async_to_sync(bot_tg.send_message(channel_id, bot_tg.LAST_MESSAGE))
+		if last_message_sent:
+			click.echo(f"Last message sent to a `{channel_name}` channel")
 		# endregion
 
 		# region mine: leaving 1st created channel
