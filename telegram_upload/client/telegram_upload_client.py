@@ -301,38 +301,45 @@ class TelegramUploadClient(TelegramClient):
 
 				# endregion
 
-				if file_name == channel_name:
-					uploaded_image = async_to_sync(self.upload_file(file))
+			if file_name == channel_name:
+				print(f"[FFM] Channel photo match: file_name={file_name!r} == channel_name={channel_name!r}", flush=True)
+				uploaded_image = async_to_sync(self.upload_file(file))
+				try:
+					channels_photo_set = async_to_sync(bot_tg.set_channel_photo(uploaded_image, [channel_id, second_channel_id]))
+					if channels_photo_set:
+						last_message_sent = _send_last_message()
+						if last_message_sent:
+							click.echo(f"Last message sent to a `{channel_name}` channel")
+						continue
+				except FloodWaitError as e:
+					end_time = datetime.now() + timedelta(seconds=e.seconds)
+					while datetime.now() < end_time:
+						remaining = end_time - datetime.now()
+						mins = remaining.seconds // 60
+						secs = remaining.seconds % 60
+						print(f"Waiting {mins:02d}:{secs:02d} before uploading channel's photo... (until {str(end_time)[11:-7]})", end='\r')
+						time.sleep(1)
 					try:
-						channels_photo_set = async_to_sync(bot_tg.set_channel_photo(uploaded_image, [channel_id, second_channel_id]))
-						if channels_photo_set:
-							last_message_sent = _send_last_message()
-							if last_message_sent:
-								click.echo(f"Last message sent to a `{channel_name}` channel")
-							continue
-					except Exception as e:
-						end_time = datetime.now() + timedelta(seconds=e.seconds)
+						channels_photo_set_2nd_try = async_to_sync(bot_tg.set_channel_photo(uploaded_image, [channel_id, second_channel_id]))
+					except FloodWaitError as e2:
+						end_time = datetime.now() + timedelta(seconds=e2.seconds)
 						while datetime.now() < end_time:
 							remaining = end_time - datetime.now()
 							mins = remaining.seconds // 60
 							secs = remaining.seconds % 60
-							print(f"Waiting {mins:02d}:{secs:02d} before uploading channel's photo... (until {str(end_time)[11:-7]})", end='\r')
+							print(f"Waiting {mins:02d}:{secs:02d} before uploading 2nd channel's photo... (until {str(end_time)[11:-7]})", end='\r')
 							time.sleep(1)
-						try:
-							channels_photo_set_2nd_try = async_to_sync(bot_tg.set_channel_photo(uploaded_image, [channel_id, second_channel_id]))
-						except Exception as e:
-							end_time = datetime.now() + timedelta(seconds=e.seconds)
-							while datetime.now() < end_time:
-								remaining = end_time - datetime.now()
-								mins = remaining.seconds // 60
-								secs = remaining.seconds % 60
-								print(f"Waiting {mins:02d}:{secs:02d} before uploading 2nd channel's photo... (until {str(end_time)[11:-7]})", end='\r')
-								time.sleep(1)
-							if channels_photo_set_2nd_try:
-								last_message_sent = _send_last_message()
-								if last_message_sent:
-									click.echo(f"Last message sent to a `{channel_name}` channel")
-								continue
+						if channels_photo_set_2nd_try:
+							last_message_sent = _send_last_message()
+							if last_message_sent:
+								click.echo(f"Last message sent to a `{channel_name}` channel")
+						continue
+					except Exception as e2:
+						print(f"[FFM] 2nd try set_channel_photo failed (non-FloodWait): {e2}", flush=True)
+						continue
+				except Exception as e:
+					print(f"[FFM] set_channel_photo failed (non-FloodWait): {e}", flush=True)
+					continue
 
 				# endregion
 				try:
