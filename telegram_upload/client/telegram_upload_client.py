@@ -220,6 +220,7 @@ class TelegramUploadClient(TelegramClient):
 			channel_id = existing_discography[0][0]
 			second_channel_id = existing_discography[0][1]
 			entity = channel_id
+			channels_newly_created = False
 			self.get_dialogs()
 
 			# region Deleting last_message
@@ -232,6 +233,7 @@ class TelegramUploadClient(TelegramClient):
 		else:
 			print(f"[FFM] NO existing discography -> calling create_channels({channel_name!r})", flush=True)
 			channel_id, second_channel_id = async_to_sync(bot_tg.create_channels(channel_name))
+			channels_newly_created = True
 			print(f"[FFM] create_channels returned channel_id={channel_id!r} second={second_channel_id!r}", flush=True)
 			if channel_id and second_channel_id:
 				_deezer_id = os.environ.get('ARTIST_DEEZER_ID')
@@ -417,23 +419,25 @@ class TelegramUploadClient(TelegramClient):
 
 		# region mine: leaving 1st created channel
 
-		first_channel_left = async_to_sync(bot_tg.leave_channel(channel_id))
-		if first_channel_left:
-			print("1st channel left")
-		else:
-			print("Error on leaving 1st channel")
-
+		if channels_newly_created:
+			try:
+				first_channel_left = async_to_sync(bot_tg.leave_channel(channel_id))
+				if first_channel_left:
+					print("1st channel left")
+			except Exception as e:
+				print(f"Warning: could not leave 1st channel: {e}")
 
 		# endregion
 
 		# region mine: archiving 2nd created channel
 
-		second_channel_left = async_to_sync(bot_tg.leave_channel(second_channel_id))
-		if second_channel_left:
-			print("2nd channel left")
-		else:
-			print("Error on leaving 2nd channel")
-		# endregion
+		if channels_newly_created:
+			try:
+				second_channel_left = async_to_sync(bot_tg.leave_channel(second_channel_id))
+				if second_channel_left:
+					print("2nd channel left")
+			except Exception as e:
+				print(f"Warning: could not leave 2nd channel: {e}")
 
 		return messages
 
