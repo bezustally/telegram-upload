@@ -164,6 +164,12 @@ class TelegramUploadClient(TelegramClient):
 		message = None
 		progress, bar = get_progress_bar('Uploading', file.file_name, file.file_size)
 
+		# Rewind the file object: a retry reuses the same handle, which is
+		# left at EOF after a failed attempt (e.g. FilePartMissingError).
+		# Without this the next read returns b'' and upload fails with
+		# "ValueError: read less than ... before reaching the end".
+		file.seek(0)
+
 		try:
 			try:
 				# TODO: remove distinction?
