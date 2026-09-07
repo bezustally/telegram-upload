@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import os
+import subprocess
 import time
 from datetime import datetime, timedelta
 from typing import Iterable, Optional
@@ -18,7 +19,7 @@ from telethon.utils import pack_bot_file_id
 
 from telegram_upload.client.progress_bar import get_progress_bar
 from telegram_upload.exceptions import TelegramUploadDataLoss, MissingFileError
-from telegram_upload.upload_files import File, COVER_EXTENSIONS, RESTRICTED_ALBUMS_TO_UPLOAD, RESTRICTED_ALBUMS_TO_PIN
+from telegram_upload.upload_files import File, COVER_EXTENSIONS, SILENCE_MAX_DURATION, RESTRICTED_ALBUMS_TO_UPLOAD, RESTRICTED_ALBUMS_TO_PIN
 from telegram_upload.utils import grouper, async_to_sync, get_environment_integer
 
 # endregion
@@ -48,6 +49,37 @@ def clean_album_name(album_name: str) -> str:
 	for placeholder, replacement in PLACEHOLDER_REPLACEMENTS.items():
 		album_name = album_name.replace(placeholder, replacement)
 	return album_name
+
+
+def audio_duration_seconds(path) -> Optional[float]:
+	"""Return audio duration in seconds via ffprobe, or None if unreadable."""
+	try:
+		proc = subprocess.run(
+			["ffprobe", "-v", "error", "-show_entries", "format=duration",
+			 "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+			capture_output=True, text=True, timeout=30,
+		)
+		if proc.returncode != 0:
+			return None
+		return float(proc.stdout.strip())
+	except Exception:
+		return None
+
+
+def is_silence_file(file: File) -> bool:
+	"""True if the file is a deemix silence placeholder (or unreadable audio).
+
+	Covers and .DS_Store are never silence.
+	"""
+	if file.file_name == ".DS_Store":
+		return False
+	if file.file_name.split('.')[-1] in COVER_EXTENSIONS:
+		return False
+	duration = audio_duration_seconds(file.path)
+	if duration is None:
+		print(f'Warning: could not probe duration of "{file.file_name}", treating as unavailable', flush=True)
+		return True
+	return duration < SILENCE_MAX_DURATION
 
 class TelegramUploadClient(TelegramClient):
 	parallel_upload_blocks = PARALLEL_UPLOAD_BLOCKS
@@ -264,11 +296,22 @@ class TelegramUploadClient(TelegramClient):
 			albums[album_name].append(file)
 		# endregion
 
+		skipped_silence_albums = 0
 		for album_name, album_files in albums.items():
 			clean_name = clean_album_name(album_name)
 			is_album_already_uploaded = async_to_sync(bot_db.check_album(clean_name, channel_id))[0][0]
 			if is_album_already_uploaded:
 				continue
+
+			# region mine: skipping fully unavailable albums (all tracks are silence)
+			audio_files = [f for f in album_files
+			               if f.file_name != ".DS_Store"
+			               and f.file_name.split('.')[-1] not in COVER_EXTENSIONS]
+			if audio_files and all(is_silence_file(f) for f in audio_files):
+				print(f'SKIP album "{clean_name}": all {len(audio_files)} track(s) unavailable (silence), not recording in DB', flush=True)
+				skipped_silence_albums += 1
+				continue
+			# endregion
 
 			album_track_count = sum(1 for f in album_files if f.file_name != ".DS_Store" and f.file_name.split('.')[-1] not in COVER_EXTENSIONS)
 			count = 0
@@ -409,6 +452,9 @@ class TelegramUploadClient(TelegramClient):
 				else:
 					print(f'Failed to add "{clean_name}" to database')
 		if not has_files:
+			if skipped_silence_albums:
+				print(f"All {skipped_silence_albums} album(s) skipped as fully unavailable (silence). Nothing to upload.", flush=True)
+				return messages
 			raise MissingFileError('Files do not exist.')
 		# region mine: adding main account
 

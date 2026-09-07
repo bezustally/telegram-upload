@@ -38,6 +38,10 @@ mimetypes.init()
 
 COVER_EXTENSIONS = ['jpg', 'jpeg', 'png']
 
+# Tracks shorter than this are treated as deemix silence placeholders
+# (the silence template is exactly 5.0s). Such albums are skipped entirely.
+SILENCE_MAX_DURATION = 10.0
+
 RESTRICTED_ALBUMS_TO_UPLOAD = [
 
 
