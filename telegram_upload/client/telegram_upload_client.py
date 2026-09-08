@@ -314,12 +314,10 @@ class TelegramUploadClient(TelegramClient):
 			# endregion
 
 			album_track_count = sum(1 for f in album_files if f.file_name != ".DS_Store" and f.file_name.split('.')[-1] not in COVER_EXTENSIONS)
-			count = 0
 			successfully_uploaded = False
 			for file in album_files:
 				if file.file_name == ".DS_Store":
 					continue
-				count += 1
 				has_files = True
 				thumb = file.get_thumbnail()
 				# region mine: setting channel's photo & sending last message
@@ -432,15 +430,11 @@ class TelegramUploadClient(TelegramClient):
 				if message and delete_on_success:
 				#click.echo('Deleting "{}"'.format(file.file_name))
 					os.remove(file.path)
-					if count == 1:
-						#print(f"All tracks uploaded, adding album to database...")
-						# Очищаем название альбома перед добавлением в базу
-						clean_name = clean_album_name(album_name)
-						album_added = async_to_sync(bot_db.add_album(clean_name, channel_id))
-						if album_added:
-							print(f'"{clean_name}" added to database')
-						else:
-							print(f'Failed to add "{clean_name}" to database')
+				# NB: album is recorded in the DB only once, after all its
+				# files are uploaded (see the successfully_uploaded block
+				# below). An early insert here would mark the album done
+				# before a single track is up, and with delete_on_success
+				# a mid-album crash would then lose the remaining tracks.
 				if message:
 					successfully_uploaded = True
 
