@@ -466,27 +466,25 @@ class TelegramUploadClient(TelegramClient):
 			click.echo(f"Last message sent to a `{channel_name}` channel")
 		# endregion
 
-		# region mine: leaving 1st created channel
+		# region mine: leaving 1st channel
 
-		if channels_newly_created:
-			try:
-				first_channel_left = async_to_sync(bot_tg.leave_channel(channel_id))
-				if first_channel_left:
-					print("1st channel left")
-			except Exception as e:
-				print(f"Warning: could not leave 1st channel: {e}")
+		try:
+			first_channel_left = async_to_sync(bot_tg.leave_channel(channel_id))
+			if first_channel_left:
+				print("1st channel left")
+		except Exception as e:
+			print(f"Warning: could not leave 1st channel: {e}")
 
 		# endregion
 
-		# region mine: archiving 2nd created channel
+		# region mine: leaving 2nd channel
 
-		if channels_newly_created:
-			try:
-				second_channel_left = async_to_sync(bot_tg.leave_channel(second_channel_id))
-				if second_channel_left:
-					print("2nd channel left")
-			except Exception as e:
-				print(f"Warning: could not leave 2nd channel: {e}")
+		try:
+			second_channel_left = async_to_sync(bot_tg.leave_channel(second_channel_id))
+			if second_channel_left:
+				print("2nd channel left")
+		except Exception as e:
+			print(f"Warning: could not leave 2nd channel: {e}")
 
 		return messages
 
