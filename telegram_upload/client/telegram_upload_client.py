@@ -396,6 +396,7 @@ class TelegramUploadClient(TelegramClient):
 					click.echo('Uploaded successfully "{}" (file_id {})'.format(file.file_name,
 																				pack_bot_file_id(message.media)))
 				if message:
+					print(f'UPLOADED "{file.file_name}" message_id={message.id}', flush=True)
 					# region mine: forwarding message to 2nd channel
 
 					forward = [second_channel_id]
