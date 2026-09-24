@@ -316,13 +316,22 @@ class File(FileIO):
 
         folder_name_and_cover_file = self.path.split('/')
 
+        # Album folder is the file's parent dir, not path[0]: with a nested
+        # cwd (e.g. telegram-upload run from ~/Downloads/Zhu, paths like
+        # "Zhu/<album>/0.jpg") path[0] is the artist and covers got the
+        # artist as caption instead of "YEAR — Album".
+        if len(folder_name_and_cover_file) > 1:
+            album_folder = folder_name_and_cover_file[-2]
+        else:
+            album_folder = folder_name_and_cover_file[0]
+
         # Check for a match for the year
-        year_match = re.search('^\d{4}', folder_name_and_cover_file[0])
+        year_match = re.search('^\d{4}', album_folder)
         if year_match:
-            album_name = folder_name_and_cover_file[0][11:]  # cutting YYYY-MM-DD\s from the beginning
+            album_name = album_folder[11:]  # cutting YYYY-MM-DD\s from the beginning
         else:
             # Handle the case where the year is not found
-            album_name = folder_name_and_cover_file[0]  # Use the full folder name or set a default value
+            album_name = album_folder  # Use the full folder name or set a default value
 
         album_name = album_name.replace("%SLASH%", "/")
         album_name = album_name.replace("%COLON%", ":")
