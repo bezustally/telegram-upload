@@ -290,9 +290,14 @@ class TelegramUploadClient(TelegramClient):
 
 		# endregion
 		# region mine: grouping files by album
+		# Album dir is the file's parent, not path[0]: with a nested cwd
+		# (paths like "Artist/<album>/<file>") path[0] is the artist and
+		# everything merges into one pseudo-album (wrong DB row, wrong
+		# pinning, wrong skip logic). Same class of bug as file_caption.
 		albums = defaultdict(list)
 		for file in files:
-			album_name = file.path.split('/')[0]
+			parts = file.path.split('/')
+			album_name = parts[-2] if len(parts) > 1 else parts[0]
 			albums[album_name].append(file)
 		# endregion
 
