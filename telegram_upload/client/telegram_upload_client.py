@@ -94,7 +94,7 @@ class TelegramUploadClient(TelegramClient):
 		# reads incoming updates: disable the update loop entirely. This also
 		# sidesteps the Telethon v1.44.0 messagebox race that tears down the
 		# connection after reconnects ("Should not be applying the difference").
-		kwargs.setdefault('no_updates', True)
+		kwargs.setdefault('receive_updates', False)
 		super().__init__(*args, **kwargs)
 
 
