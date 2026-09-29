@@ -33,6 +33,9 @@ RETRIES = 3
 MAX_RECONNECT_RETRIES = get_environment_integer('TELEGRAM_UPLOAD_MAX_RECONNECT_RETRIES', 5)
 RECONNECT_TIMEOUT = get_environment_integer('TELEGRAM_UPLOAD_RECONNECT_TIMEOUT', 5)
 MIN_RECONNECT_WAIT = get_environment_integer('TELEGRAM_UPLOAD_MIN_RECONNECT_WAIT', 2)
+# Max seconds for one file-part send: without a bound a dead connection parks
+# the upload silently forever. Timeout feeds the normal retry path below.
+PART_SEND_TIMEOUT = get_environment_integer('TELEGRAM_UPLOAD_PART_SEND_TIMEOUT', 300)
 
 # Плейсхолдеры для замены
 PLACEHOLDER_REPLACEMENTS = {
@@ -87,6 +90,11 @@ class TelegramUploadClient(TelegramClient):
 	def __init__(self, *args, **kwargs):
 		self.reconnecting_lock = asyncio.Lock()
 		self.upload_semaphore = asyncio.Semaphore(self.parallel_upload_blocks)
+		# The uploader only sends (files, forwards, pins, invites) and never
+		# reads incoming updates: disable the update loop entirely. This also
+		# sidesteps the Telethon v1.44.0 messagebox race that tears down the
+		# connection after reconnects ("Should not be applying the difference").
+		kwargs.setdefault('no_updates', True)
 		super().__init__(*args, **kwargs)
 
 
@@ -695,15 +703,16 @@ class TelegramUploadClient(TelegramClient):
 		"""
 		result = None
 		try:
-			result = await self(request)
+			result = await asyncio.wait_for(self(request), PART_SEND_TIMEOUT)
 		except InvalidBufferError as e:
 			if e.code == 429:
 				# Too many connections
 				click.echo(f'Too many connections to Telegram servers.', err=True)
 			else:
 				raise
-		except ConnectionError:
-			# Retry to send the file part
+		except (ConnectionError, asyncio.TimeoutError):
+			# Retry to send the file part (timeout included: a part send
+			# must never park the upload silently)
 			click.echo(f'Detected connection error. Retrying...', err=True)
 		else:
 			self.upload_semaphore.release()
@@ -724,16 +733,6 @@ class TelegramUploadClient(TelegramClient):
 				'Failed to upload file part {}.'.format(part_index))
 
 
-	def decrease_upload_semaphore(self):
-		"""
-		Decreases the upload semaphore by one. This method is used to reduce the number of parallel uploads.
-		:return:
-		"""
-		if self.parallel_upload_blocks > 1:
-			self.parallel_upload_blocks -= 1
-			self.loop.create_task(self.upload_semaphore.acquire())
-
-
 	async def reconnect(self):
 		"""
 		Reconnects to Telegram servers.
@@ -745,7 +744,10 @@ class TelegramUploadClient(TelegramClient):
 			# Reconnected in another task
 			self.reconnecting_lock.release()
 			return
-		self.decrease_upload_semaphore()
+		# NB: no semaphore juggling here. decrease_upload_semaphore used to
+		# permanently consume one pool slot per reconnect, deadlocking the
+		# upload after PARALLEL_UPLOAD_BLOCKS reconnects. Retry pacing is
+		# already handled by the sleep in _send_file_part.
 		try:
 			click.echo(f'Reconnecting to Telegram servers...')
 			await asyncio.wait_for(self.connect(), RECONNECT_TIMEOUT)
